@@ -6,16 +6,21 @@ Outputs, and Custom Tools with CFG.
 
 ## Coverage Matrix
 
-| Area | Covered | Notes |
-| --- | --- | --- |
-| Harmony | Yes | Multi-channel + tool call + tool output |
-| ChatML | Yes | Equivalent function calling flow |
-| Responses API | Yes | Function tools + tool output + reasoning items |
-| Chat Completions API | Yes | tools + tool_choice |
-| Structured Outputs | Yes | json_schema strict mode |
-| Custom Tools + CFG | Yes | Lark and Regex examples |
-| Parallel tool calls | Yes | Responses and Chat examples |
-| Forced tool choice | Yes | Responses and Chat examples |
+Two columns: **Doc** = format documented below with an example. **Probe** = runnable test in `probes/` that exercises this against a live endpoint (`python run_suite.py` covers all of them).
+
+| Area | Doc | Probe | Notes |
+| --- | --- | --- | --- |
+| Harmony | Yes | — | Wire format; tested indirectly via Chat Completions (probes 1-7). gpt-oss uses harmony internally; the probes see it as `reasoning` + `tool_calls` fields. |
+| ChatML | Yes | — | Wire format; tested indirectly via Chat Completions on ChatML-using models. |
+| Responses API | Yes | `probe_responses_api.py` | Most non-OpenAI endpoints return 404 here. Probe distinguishes that cleanly. |
+| Chat Completions API | Yes | `probe_chat.py`, `probe_tools_single.py`, `probe_tools_multi_turn.py` | The widely-supported path. |
+| Structured Outputs (json_schema) | Yes | `probe_structured_output.py` | `response_format` strict mode via Chat Completions. |
+| Custom Tools + CFG (Lark / Regex) | Yes | — | OpenAI-specific feature; no probe yet. |
+| Parallel tool calls | Yes | `probe_parallel_tools.py` | Tests whether model emits ≥2 tool_calls in one response. |
+| Forced tool choice | Yes | `probe_forced_tool_choice.py` | Tests `tool_choice={"type":"function","function":{"name":"X"}}`. |
+| Streaming with tool calls | — | `probe_streaming_tools.py` | Streams a tool-call response; reassembles arguments from deltas. |
+| Embeddings | — | `probe_embeddings.py` | Probes `/v1/embeddings` against likely model names. |
+| Convention-A malformed history | — | `probe_convention_a.py` | Reproduces the SambaStack-vs-vLLM divergence on legacy agent loop format. |
 
 ## Conventions
 - Example tool: `get_weather`

@@ -1,0 +1,37 @@
+# Endpoint inventory for the test suite.
+#
+# Add a new endpoint by appending a block under `endpoints:`.
+# Add a new probe by appending its filename under `probes:` — probes live in
+# the `probes/` subdirectory.
+#
+# Auth: every endpoint listed here is assumed to accept the bearer token
+# already in .env (SAMBANOVA_API_KEY). If you need a different key per
+# endpoint, add a `key_env` field and we'll plumb it through.
+
+endpoints:
+  metis-maverick:
+    url: https://inference-api.alcf.anl.gov/resource_server/metis/api/v1
+    model: Llama-4-Maverick-17B-128E-Instruct
+    notes: SambaStack on SN40L. Single-channel chat template. Multimodal.
+
+  metis-gpt-oss:
+    url: https://inference-api.alcf.anl.gov/resource_server/metis/api/v1
+    model: gpt-oss-120b
+    notes: SambaStack on SN40L. Harmony chat template (strict). Text-only.
+
+  sophia-gpt-oss:
+    url: https://inference-api.alcf.anl.gov/resource_server/sophia/vllm/v1
+    model: openai/gpt-oss-120b
+    notes: Stock vLLM with --tool-call-parser openai. Fine-grained streaming.
+
+probes:
+  - probe_chat.py
+  - probe_tools_single.py
+  - probe_tools_multi_turn.py
+  - probe_convention_a.py
+  - probe_streaming_tools.py
+  - probe_parallel_tools.py
+  - probe_forced_tool_choice.py
+  - probe_structured_output.py
+  - probe_responses_api.py
+  - probe_embeddings.py
