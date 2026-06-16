@@ -32,6 +32,9 @@ probes:
   - probe_streaming_tools.py
   - probe_parallel_tools.py
   - probe_forced_tool_choice.py
+  - probe_tool_choice_required.py
+  - probe_tool_choice_none.py
+  - probe_finish_reason_length.py
   - probe_structured_output.py
   - probe_responses_api.py
   - probe_embeddings.py
