@@ -199,7 +199,21 @@ def main() -> int:
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
     results_dir = HERE / "results"
     results_dir.mkdir(exist_ok=True)
-    report_path = args.output or (results_dir / f"results-suite-{timestamp}.md")
+
+    def _slug(s: str) -> str:
+        # Replace filesystem-hostile chars; keep names readable.
+        return s.replace("/", "-").replace("\\", "-").replace(" ", "_")
+
+    unique_models = sorted({_slug(cfg["model"]) for cfg in endpoints.values()})
+    if len(unique_models) == 1:
+        model_part = unique_models[0]
+    elif len(unique_models) <= 3:
+        model_part = "_".join(unique_models)
+    else:
+        model_part = f"{len(unique_models)}models"
+
+    default_name = f"results-suite-{model_part}-{timestamp}.md"
+    report_path = args.output or (results_dir / default_name)
     write_report(results, report_path)
     print(f"\nReport written: {report_path}")
 
