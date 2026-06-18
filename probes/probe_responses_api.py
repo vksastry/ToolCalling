@@ -17,6 +17,36 @@ from __future__ import annotations
 from _endpoint import get_client, get_model
 
 
+NOTES = """
+INPUT (POST to /v1/responses):
+
+  {
+    "model": "<MODEL>",
+    "input": [{"role": "user", "content": "Reply with the word: pong"}],
+    "max_output_tokens": 64
+  }
+
+------------
+
+EXPECTED (PASS — server implements Responses API):
+
+  HTTP 200
+  {
+    "id": "resp_X",
+    "output_text": "pong",
+    "output": [{"type": "message", "role": "assistant",
+                "content": [{"type": "output_text", "text": "pong"}]}]
+  }
+
+------------
+
+RECEIVED (DEGRADED — endpoint doesn't implement /v1/responses):
+
+  HTTP 404 or 405
+  <html>Not Found</html>
+"""
+
+
 def main() -> int:
     client = get_client()
     model = get_model("gpt-oss-120b")

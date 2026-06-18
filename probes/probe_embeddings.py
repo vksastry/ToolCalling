@@ -11,6 +11,35 @@ from __future__ import annotations
 from _endpoint import get_client
 
 
+NOTES = """
+INPUT (POST to /v1/embeddings, one request per candidate model name):
+
+  {
+    "model": "<CANDIDATE>",
+    "input": ["the quick brown fox"]
+  }
+
+------------
+
+EXPECTED (PASS — at least one candidate returns a vector):
+
+  HTTP 200
+  {"data": [{"embedding": [0.013, -0.042, 0.087, ...], "index": 0}],
+   "model": "<CANDIDATE>",
+   "usage": {"prompt_tokens": 6, "total_tokens": 6}}
+
+------------
+
+RECEIVED (DEGRADED — endpoint serves no embedding models):
+
+  All candidates fail with 404 (no /v1/embeddings) or 400 (model not found).
+  The CANDIDATES list may need updating for endpoints that do serve embeddings
+  under different model names (e.g. Sophia serves
+  "Salesforce/SFR-Embedding-Mistral" and "mistralai/Mistral-7B-Instruct-v0.3-embed"
+  which aren't yet in CANDIDATES).
+"""
+
+
 # Common embedding model names to probe. Order matters — we want the first hit
 # to be the canonical SambaNova one, then HF-style, then OpenAI-compat fallback.
 CANDIDATES = [

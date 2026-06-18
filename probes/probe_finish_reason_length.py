@@ -21,6 +21,55 @@ from __future__ import annotations
 from _endpoint import get_client, get_model
 
 
+NOTES = """
+INPUT (request body):
+
+  {
+    "model": "<MODEL>",
+    "messages": [{"role": "user", "content":
+       "Write a detailed 500-word essay about the history of the printing press."}],
+    "max_tokens": 20
+  }
+
+  Note: max_tokens is intentionally tiny — the answer cannot fit.
+
+------------
+
+EXPECTED (PASS — server reports truncation correctly):
+
+  HTTP 200
+  {"choices": [{
+     "message": {"content": "The printing press, invented by Johannes"},
+     "finish_reason": "length"
+  }]}
+
+  Or for reasoning models (gpt-oss, MiniMax) the budget is consumed by hidden
+  reasoning and content can be empty — finish_reason="length" is still PASS:
+
+  {"choices": [{
+     "message": {"content": null, "reasoning_content": "<partial trace>"},
+     "finish_reason": "length"
+  }]}
+
+------------
+
+RECEIVED (FAIL — server reports wrong finish_reason):
+
+  HTTP 200
+  {"choices": [{
+     "message": {"content": "..."},
+     "finish_reason": "stop"          # wrong — response was clearly truncated
+  }]}
+
+RECEIVED (DEGRADED — response fit in 20 tokens; not a real truncation test):
+
+  {"choices": [{
+     "message": {"content": "Done."},
+     "finish_reason": "stop"
+  }]}
+"""
+
+
 def main() -> int:
     client = get_client()
     model = get_model("gpt-oss-120b")
@@ -59,11 +108,15 @@ def main() -> int:
         return 0
 
     if fr == "stop" and content_len < 100:
-        print(f"\nDEGRADED: finished with 'stop' but content is short ({content_len} chars). "
-              "Likely the model gave a brief answer that fit in 20 tokens.")
+        print("\nDEGRADED: response fit within the 20-token budget.")
+        print("  expected: finish_reason='length' (truncated at max_tokens=20)")
+        print(f"  got     : finish_reason='stop' with content_len={content_len} chars")
+        print("  -> model gave a terse answer that didn't trigger truncation. Bump max_tokens lower and retry to force length.")
         return 3
 
-    print(f"\nFAIL: expected finish_reason='length', got {fr!r}.")
+    print("\nFAIL: server reported the wrong finish_reason.")
+    print("  expected: 'length' (response was truncated at max_tokens=20)")
+    print(f"  got     : {fr!r}")
     return 4
 
 

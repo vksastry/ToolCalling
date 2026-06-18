@@ -24,6 +24,54 @@ import json
 from _endpoint import get_client, get_model
 
 
+NOTES = """
+INPUT (request body):
+
+  {
+    "model": "<MODEL>",
+    "messages": [{"role": "user", "content": "What is 17 + 25? Use the calculator tool."}],
+    "tools": [{"type":"function","function":{"name":"calculator",
+              "parameters":{"type":"object",
+                            "properties":{"a":{"type":"number"},"b":{"type":"number"}},
+                            "required":["a","b"]}}}],
+    "tool_choice": "auto",
+    "max_tokens": 512
+  }
+
+------------
+
+EXPECTED (PASS — server returns a structured tool_call with parseable args):
+
+  HTTP 200
+  {"choices": [{"message": {
+     "role": "assistant",
+     "content": null,
+     "tool_calls": [{
+       "id": "call_X",
+       "type": "function",
+       "function": {"name": "calculator", "arguments": "{\\"a\\":17,\\"b\\":25}"}
+     }]}}]}
+
+------------
+
+RECEIVED (DEGRADED — model answered in text instead of calling the tool):
+
+  HTTP 200
+  {"choices": [{"message": {
+     "role": "assistant",
+     "content": "17 + 25 equals 42.",
+     "tool_calls": []
+  }}]}
+
+RECEIVED (FAIL — wrong tool name or unparseable arguments):
+
+  HTTP 200
+  {"choices": [{"message": {
+     "tool_calls": [{"function": {"name": "other_tool", "arguments": "<not JSON>"}}]
+  }}]}
+"""
+
+
 CALCULATOR_TOOL = {
     "type": "function",
     "function": {
@@ -60,7 +108,9 @@ def main() -> int:
     msg = r.choices[0].message
     tcs = msg.tool_calls or []
     if not tcs:
-        print(f"DEGRADED: no tool_calls returned. content={msg.content!r}")
+        print("\nDEGRADED: no tool_calls returned.")
+        print("  expected: tool_calls with at least 1 entry calling 'calculator'")
+        print(f"  got     : content={msg.content!r}  tool_calls=[]")
         return 3
 
     tc = tcs[0]
@@ -68,13 +118,17 @@ def main() -> int:
     print(f"raw arguments: {tc.function.arguments!r}")
 
     if tc.function.name != "calculator":
-        print(f"\nFAIL: expected name='calculator', got '{tc.function.name}'")
+        print("\nFAIL: wrong tool called.")
+        print("  expected: tool_call name='calculator'")
+        print(f"  got     : tool_call name={tc.function.name!r}")
         return 4
 
     try:
         args = json.loads(tc.function.arguments)
     except json.JSONDecodeError as e:
-        print(f"\nFAIL: arguments are not parseable JSON: {e}")
+        print("\nFAIL: arguments are not parseable JSON.")
+        print("  expected: parseable JSON object with keys 'a' and 'b'")
+        print(f"  got     : {tc.function.arguments!r}  (parse error: {e})")
         return 4
 
     print(f"parsed args  : {args}")

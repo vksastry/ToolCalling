@@ -31,6 +31,48 @@ from __future__ import annotations
 from _endpoint import get_client, get_model
 
 
+NOTES = """
+INPUT (turn 2 request body — well-formed convention-B history):
+
+  {
+    "model": "<MODEL>",
+    "messages": [
+      {"role": "user", "content": "What is 17 + 25? Use the calculator tool."},
+      {"role": "assistant",
+       "content": "",
+       "tool_calls": [{
+         "id": "call_X",
+         "type": "function",
+         "function": {"name": "calculator", "arguments": "{\\"a\\":17,\\"b\\":25}"}
+       }]},
+      {"role": "tool", "tool_call_id": "call_X", "content": "42"}
+    ],
+    "tools": [<calculator>],
+    "max_tokens": 512
+  }
+
+  Note: tool message references the SAME id ("call_X") as the assistant's
+  tool_calls entry — that's what makes the history "well-formed".
+
+------------
+
+EXPECTED (PASS — server returns final answer):
+
+  HTTP 200
+  {"choices": [{"message": {
+     "role": "assistant",
+     "content": "17 + 25 = 42."
+  }, "finish_reason": "stop"}]}
+
+------------
+
+RECEIVED (FAIL — server rejects turn 2):
+
+  HTTP 400 or 500
+  {"error": {"message": "<chat-template renderer rejected the history>"}}
+"""
+
+
 CALCULATOR_TOOL = {
     "type": "function",
     "function": {

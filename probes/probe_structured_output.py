@@ -19,6 +19,60 @@ import json
 from _endpoint import get_client, get_model
 
 
+NOTES = """
+INPUT (request body):
+
+  {
+    "model": "<MODEL>",
+    "messages": [
+      {"role": "system", "content": "Extract the event into JSON."},
+      {"role": "user", "content": "Alice meets Bob on Friday."}
+    ],
+    "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+        "name": "event",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "date": {"type": "string"},
+            "participants": {"type": "array", "items": {"type": "string"}}
+          },
+          "required": ["name", "date", "participants"],
+          "additionalProperties": false
+        },
+        "strict": true
+      }
+    },
+    "max_tokens": 512
+  }
+
+------------
+
+EXPECTED (PASS — content is valid JSON matching the schema):
+
+  HTTP 200
+  {"choices": [{"message": {
+     "content": "{\\"name\\":\\"meeting\\",\\"date\\":\\"Friday\\",\\"participants\\":[\\"Alice\\",\\"Bob\\"]}"
+  }}]}
+
+------------
+
+RECEIVED (DEGRADED — content isn't valid JSON, or doesn't match schema):
+
+  HTTP 200
+  {"choices": [{"message": {
+     "content": "Alice and Bob will meet on Friday."   # plain prose, not JSON
+  }}]}
+
+RECEIVED (FAIL — server rejects response_format=json_schema):
+
+  HTTP 400
+  {"error": {"message": "response_format json_schema not supported"}}
+"""
+
+
 SCHEMA = {
     "type": "object",
     "properties": {

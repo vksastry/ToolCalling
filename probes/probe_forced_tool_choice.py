@@ -1,44 +1,78 @@
-"""Probe forced tool_choice — endpoint must call a specific named tool.
-
-Sends two tools but forces the model to call only one of them via
-`tool_choice={"type":"function","function":{"name":"calculator"}}`. Validates
-that the model returns a tool_call for the forced tool, ignoring the other.
-
-Exit codes:
-  0 = OK
-  2 = transport/auth failure
-  3 = endpoint accepted the request but model called wrong tool / no tool
-  4 = endpoint rejected the forced tool_choice (parameter not supported)
-"""
+"""Probe forced tool_choice — endpoint must call a specific named tool."""
 
 from __future__ import annotations
 
-from _endpoint import get_client, get_model
+from _endpoint import get_client, get_model, verbose_chat_completion
 
 
-CALCULATOR_TOOL = {
+NOTES = """
+INPUT (request body):
+
+  {
+    "model": "<MODEL>",
+    "messages": [{"role": "user", "content": "What is the time?"}],
+    "tools": [
+      {"type":"function","function":{"name":"get_time_local","parameters":{...}}},
+      {"type":"function","function":{"name":"get_time_utc","parameters":{...}}}
+    ],
+    "tool_choice": {"type":"function","function":{"name":"get_time_utc"}},
+    "max_tokens": 512
+  }
+
+  Both tools are valid answers to "What is the time?". Force is on get_time_utc.
+
+------------
+
+EXPECTED (PASS — server constrains decoding):
+
+  HTTP 200
+  {
+    "choices": [{
+      "message": {
+        "tool_calls": [{
+          "id": "call_X",
+          "function": {"name": "get_time_utc", "arguments": "{}"}
+        }]
+      }
+    }]
+  }
+
+------------
+
+RECEIVED (DEGRADED — server treats tool_choice as a hint, model picks the other):
+
+  HTTP 200
+  {
+    "choices": [{
+      "message": {
+        "tool_calls": [{
+          "id": "call_X",
+          "function": {"name": "get_time_local", "arguments": "{}"}
+        }]
+      }
+    }]
+  }
+"""
+
+
+GET_TIME_LOCAL_TOOL = {
     "type": "function",
     "function": {
-        "name": "calculator",
-        "description": "Adds two numbers.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "a": {"type": "number"},
-                "b": {"type": "number"},
-            },
-            "required": ["a", "b"],
-        },
-    },
-}
-GET_TIME_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "get_time",
-        "description": "Returns the current time.",
+        "name": "get_time_local",
+        "description": "Returns the current time in the user's local timezone.",
         "parameters": {"type": "object", "properties": {}},
     },
 }
+GET_TIME_UTC_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "get_time_utc",
+        "description": "Returns the current time in UTC.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+
+FORCED_NAME = "get_time_utc"
 
 
 def main() -> int:
@@ -46,11 +80,12 @@ def main() -> int:
     model = get_model("gpt-oss-120b")
 
     try:
-        r = client.chat.completions.create(
+        r = verbose_chat_completion(
+            client,
             model=model,
             messages=[{"role": "user", "content": "What is the time?"}],
-            tools=[CALCULATOR_TOOL, GET_TIME_TOOL],
-            tool_choice={"type": "function", "function": {"name": "calculator"}},
+            tools=[GET_TIME_LOCAL_TOOL, GET_TIME_UTC_TOOL],
+            tool_choice={"type": "function", "function": {"name": FORCED_NAME}},
             max_tokens=512,
         )
     except Exception as e:
@@ -60,13 +95,17 @@ def main() -> int:
     msg = r.choices[0].message
     tcs = msg.tool_calls or []
     if not tcs:
-        print(f"DEGRADED: no tool_calls returned even though one was forced. content={msg.content!r}")
+        print("\nDEGRADED: no tool_calls returned even though one was forced.")
+        print(f"  expected: tool_call with name={FORCED_NAME!r} (the forced function)")
+        print(f"  got     : content={msg.content!r}  tool_calls=[]")
         return 3
 
     tc = tcs[0]
     print(f"tool_call: name={tc.function.name} args={tc.function.arguments}")
-    if tc.function.name != "calculator":
-        print(f"\nDEGRADED: expected 'calculator' (forced), got '{tc.function.name}'")
+    if tc.function.name != FORCED_NAME:
+        print("\nDEGRADED: model ignored the forced tool_choice.")
+        print(f"  expected: tool_call with name={FORCED_NAME!r}")
+        print(f"  got     : tool_call with name={tc.function.name!r}")
         return 3
 
     print("\nOK: endpoint honored tool_choice and called the forced tool")

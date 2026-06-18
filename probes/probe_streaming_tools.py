@@ -18,6 +18,43 @@ import json
 from _endpoint import get_client, get_model
 
 
+NOTES = """
+INPUT (request body):
+
+  {
+    "model": "<MODEL>",
+    "messages": [{"role": "user", "content": "What is 17 + 25? Use the calculator tool."}],
+    "tools": [<calculator>],
+    "tool_choice": "auto",
+    "stream": true,
+    "max_tokens": 512
+  }
+
+------------
+
+EXPECTED (PASS — sequence of SSE deltas; arguments reassemble to valid JSON):
+
+  data: {"choices":[{"delta":{"role":"assistant"}}]}
+  data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_X",
+                       "function":{"name":"calculator","arguments":""}}]}}]}
+  data: {"choices":[{"delta":{"tool_calls":[{"index":0,
+                       "function":{"arguments":"{\\"a\\":"}}]}}]}
+  data: {"choices":[{"delta":{"tool_calls":[{"index":0,
+                       "function":{"arguments":"17,\\"b\\":25}"}}]}}]}
+  data: [DONE]
+
+  Concatenating all "arguments" deltas at index 0 → '{"a":17,"b":25}' (valid JSON).
+
+------------
+
+RECEIVED (FAIL — concatenated arguments don't parse as JSON):
+
+  data: {"choices":[{"delta":{"tool_calls":[{"index":0,
+                       "function":{"arguments":"{\\"a\\":17"}}]}}]}
+  data: [DONE]   (stream cut off mid-JSON, no closing brace)
+"""
+
+
 CALCULATOR_TOOL = {
     "type": "function",
     "function": {

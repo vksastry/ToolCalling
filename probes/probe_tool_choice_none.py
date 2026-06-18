@@ -17,6 +17,41 @@ from __future__ import annotations
 from _endpoint import get_client, get_model
 
 
+NOTES = """
+INPUT (request body):
+
+  {
+    "model": "<MODEL>",
+    "messages": [{"role": "user", "content": "What is 17 + 25? Just answer in text."}],
+    "tools": [<calculator>],
+    "tool_choice": "none",
+    "max_tokens": 512
+  }
+
+  Note: prompt invites a tool call. "none" suppresses it.
+
+------------
+
+EXPECTED (PASS — server suppresses tool calls, returns text):
+
+  HTTP 200
+  {"choices": [{"message": {
+     "content": "17 + 25 equals 42.",
+     "tool_calls": []
+  }}]}
+
+------------
+
+RECEIVED (DEGRADED — model called a tool anyway):
+
+  HTTP 200
+  {"choices": [{"message": {
+     "content": null,
+     "tool_calls": [{"function": {"name": "calculator", "arguments": "{...}"}}]
+  }}]}
+"""
+
+
 CALCULATOR_TOOL = {
     "type": "function",
     "function": {
@@ -53,12 +88,15 @@ def main() -> int:
     tcs = msg.tool_calls or []
     if tcs:
         tc = tcs[0]
-        print(f"unexpected tool_call: name={tc.function.name} args={tc.function.arguments}")
         print("\nDEGRADED: server accepted tool_choice='none' but model called a tool anyway")
+        print("  expected: tool_calls=[] and text content")
+        print(f"  got     : tool_call(name={tc.function.name!r}, args={tc.function.arguments!r})")
         return 3
 
     if not msg.content:
         print("\nDEGRADED: response had neither tool_calls nor text content")
+        print("  expected: tool_calls=[] and non-empty content")
+        print(f"  got     : tool_calls=[] and content={msg.content!r}")
         return 3
 
     print(f"content: {msg.content!r}")

@@ -14,6 +14,33 @@ from __future__ import annotations
 from _endpoint import get_client, get_model
 
 
+NOTES = """
+INPUT (request body):
+
+  {
+    "model": "<MODEL>",
+    "messages": [{"role": "user", "content": "Reply with exactly the word: pong"}],
+    "max_tokens": 512
+  }
+
+------------
+
+EXPECTED (PASS — content contains "pong"):
+
+  HTTP 200
+  {"choices": [{"message": {"role": "assistant", "content": "pong"},
+                "finish_reason": "stop"}]}
+
+------------
+
+RECEIVED (DEGRADED — empty or unexpected content):
+
+  HTTP 200
+  {"choices": [{"message": {"role": "assistant", "content": null},
+                "finish_reason": "stop"}]}
+"""
+
+
 def main() -> int:
     client = get_client()
     model = get_model("gpt-oss-120b")

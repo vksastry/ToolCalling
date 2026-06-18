@@ -1,30 +1,55 @@
-"""Reproduce the SambaStack harmony bug: orphan ToolMessage in convention-A history.
-
-Sends a deliberately malformed turn-2 history that mimics what older agent
-kits produce (tool call expressed as text JSON in `content`, empty
-`tool_calls=[]`, followed by a `role=tool` message with an unlinked
-`tool_call_id`).
-
-Expected behavior on a tolerant server (e.g. stock vLLM serving gpt-oss-120b
-on Sophia): server renders the history loosely and returns 200 with a final
-answer.
-
-Observed behavior on SambaStack serving gpt-oss-120b on Metis: server returns
-HTTP 500 with "Internal error when running prediction service". The strict
-harmony chat template implementation cannot render a tool message that does
-not link to a structured tool_calls entry.
-
-Run:
-  export SAMBANOVA_API_BASE=...
-  export MODEL=gpt-oss-120b
-  python endpoint_probes/probe_convention_a.py
-
-Exit codes:
-  0 = server tolerated the malformed history (bug not present)
-  4 = server rejected the malformed history (bug reproduced — Metis behavior)
-"""
+"""Reproduce the SambaStack convention-A history rejection bug."""
 
 from __future__ import annotations
+
+NOTES = """
+INPUT (turn 2 request body — deliberately malformed history):
+
+  {
+    "model": "<MODEL>",
+    "messages": [
+      {"role": "user", "content": "What is 17 + 25? Use the calculator tool."},
+      {"role": "assistant",
+       "content": "[{\\"tool\\":\\"calculator\\",\\"tool_input\\":{\\"a\\":17,\\"b\\":25}}]",
+       "tool_calls": []},
+      {"role": "tool", "tool_call_id": "0",
+       "content": "Tool 'calculator' response: 42"}
+    ],
+    "tools": [<calculator>],
+    "max_tokens": 512
+  }
+
+  Malformation: assistant.tool_calls is empty, but the tool message
+  references tool_call_id "0" — no tool_call with that id exists anywhere.
+
+------------
+
+EXPECTED on a tolerant server (PASS — what stock vLLM does):
+
+  HTTP 200
+  {
+    "choices": [{
+      "message": {
+        "role": "assistant",
+        "content": "The sum of 17 and 25 is 42."
+      },
+      "finish_reason": "stop"
+    }]
+  }
+
+------------
+
+RECEIVED on a strict server (FAIL — what SambaStack does):
+
+  HTTP 400
+  {
+    "error": {
+      "code": "internal_endpoint_error",
+      "message": "Upstream endpoint returned 400: {\\"error\\":{\\"message\\":\\"We could not process your request. Please check your input and try again.\\",\\"type\\":\\"invalid_request_error\\"}}"
+    }
+  }
+"""
+
 
 from _endpoint import get_client, get_model
 

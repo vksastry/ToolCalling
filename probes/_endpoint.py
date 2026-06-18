@@ -24,9 +24,10 @@ Example: probe a self-hosted vLLM on the same machine with a self-signed cert.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from openai import OpenAI
 
@@ -71,3 +72,20 @@ def get_model(default: str) -> str:
     model = os.environ.get("MODEL", default)
     print(f"model    = {model}\n")
     return model
+
+
+def verbose_chat_completion(client: OpenAI, **kwargs: Any):
+    """Wraps client.chat.completions.create() and prints full request + response.
+
+    Use in any probe where the report should capture the literal wire trace.
+    The output is intentionally noisy — it becomes part of the per-probe
+    section of `results/results-suite-*.md` so a reader can audit exactly
+    what was sent and what came back.
+    """
+    print("=== REQUEST BODY (what we send) ===")
+    print(json.dumps(kwargs, indent=2, default=str))
+    r = client.chat.completions.create(**kwargs)
+    print("\n=== FULL RESPONSE (what came back) ===")
+    print(json.dumps(r.model_dump(), indent=2, default=str))
+    print()
+    return r

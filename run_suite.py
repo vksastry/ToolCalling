@@ -48,6 +48,19 @@ def load_config() -> dict:
     return yaml.safe_load(CONFIG_PATH.read_text())
 
 
+def read_probe_notes(probe: str) -> str:
+    """Extract the NOTES string from a probe file, if present. Empty if not."""
+    p = PROBES_DIR / probe
+    try:
+        text = p.read_text()
+    except OSError:
+        return ""
+    # Look for: NOTES = """...""" at module level
+    import re
+    m = re.search(r'^NOTES\s*=\s*"""(.*?)"""', text, re.MULTILINE | re.DOTALL)
+    return m.group(1).strip() if m else ""
+
+
 def run_probe(probe: str, endpoint_name: str, cfg: dict) -> dict:
     """Run one probe as a subprocess with the endpoint's env vars set."""
     env = os.environ.copy()
@@ -106,6 +119,13 @@ def write_report(results: list, path: Path) -> None:
             f"- model: `{r['model']}`",
             f"- exit_code: {r['exit_code']} ({r['verdict']})",
             f"- elapsed: {r['elapsed_s']}s",
+            "",
+        ]
+        notes = read_probe_notes(r["probe"])
+        if notes:
+            lines += ["**About this probe:**", "", notes, ""]
+        lines += [
+            "**Run output:**",
             "",
             "```",
             r["stdout"].rstrip() or "(no stdout)",
